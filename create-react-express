@@ -1,0 +1,204 @@
+#!/bin/bash
+
+ORANGE="\033[0;33m"
+GREEN="\033[0;32m"
+NC="\033[0m"
+
+# Get Project Directory
+echo -e "${ORANGE}Input desired project directory:${NC}"
+read root
+
+mkdir $root
+cd $root
+
+# Creates all directories in current directory
+mkdir server
+mkdir public
+
+mkdir client
+mkdir client/components
+
+# Create initial HTML file
+touch public/index.html
+
+cat >> public/index.html <<EOL
+<!DOCTYPE html>
+<head>
+
+  <!--local CSS dependencies-->
+  <link rel="stylesheet" href="/styles.css" />
+
+  <!--local JS dependencies, from Webpack -->
+  <script src="/bundle.js" defer></script>
+  
+</head>
+<html>
+  <body>
+    <!--root React div-->
+    <div id="app"></div>
+  </body>
+</html>
+EOL
+
+# Create initial CSS file
+touch public/styles.css
+
+cat >> public/styles.css <<EOL
+* {
+    box-sizing: border-box
+}
+EOL
+
+# Create Bundle Entry Point
+touch client/App.js
+
+cat >> client/App.js <<EOL
+import React from 'react'
+import ReactDOM from 'react-dom'
+import Root from './components/Root'
+
+ReactDOM.render(
+    <Root />,
+  document.getElementById('app'))
+EOL
+
+# Create React components
+touch client/components/Root.js
+
+cat >> client/components/Root.js <<EOL
+import React from 'react'
+
+class Root extends React.Component {
+    render() {
+        return "Hello World"
+    }
+}
+
+export default Root
+EOL
+
+# Create Express Backend
+touch server/index.js
+
+cat >> server/index.js <<EOL
+// Basic Routes
+const path = require('path');
+const express = require('express');
+const app = express();
+
+// Default port is 3000
+const PORT = process.env.PORT || 3000;
+
+// Logging Middleware
+const morgan = require('morgan');
+app.use(morgan('dev'));
+
+// JSON request body parser
+const bodyParser = require('body-parser');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Static Middleware
+app.use(express.static(path.join(__dirname, '../public')))
+
+// Route catchall
+app.get('*', function (req, res, next) {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Set server to listen on PORT
+app.listen(PORT, () => {
+    console.log('Listening on port', PORT)
+})
+EOL
+
+# Install NPM in directory
+
+echo -e "
+
+    ${ORANGE}Initializing NPM...${NC}
+
+"
+npm init
+
+if test -f package.json; then
+    echo -e "
+
+    ${GREEN}Initialization Complete${NC}
+
+    "
+else 
+    echo -e "
+    
+    ${ORANGE}Error NPM did not initialize, exiting script...${NC}
+
+    "
+    exit 126 
+fi
+
+# Install NPM packages
+
+echo -e "
+
+    ${ORANGE}Installing NPM dependencies
+
+"
+
+npm install --save react react-dom react-router-dom path express morgan body-parser
+
+####WEBPACK####
+
+npm install --save-dev webpack webpack-cli @babel/core babel-loader @babel/preset-react @babel/preset-env nodemon
+
+touch webpack.config.js
+
+cat >> webpack.config.js <<EOL
+module.exports = {
+  entry: './client/App.js', 
+  mode: 'development',
+  output: {
+    path: __dirname,
+    filename: './public/bundle.js'
+  },
+  devtool: 'source-maps',
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader'
+        }
+      }
+    ]
+  }
+}
+EOL
+
+# Babel file 
+touch .babelrc
+
+cat >> .babelrc <<EOL
+{
+  "presets": ["@babel/preset-react", "@babel/preset-env"]
+}
+EOL
+
+
+# Start Script
+
+cat package.json | jq  '. * {
+    "scripts": {
+        "start": "npm run start-server & npm run build-watch", 
+        "build-watch": "webpack -w",
+        "start-server": "nodemon --watch server -e js,html --ignore public server/index.js"
+        }
+    }' > package2.json  
+
+rm package.json 
+mv package2.json package.json
+
+# code .
+
+
+
